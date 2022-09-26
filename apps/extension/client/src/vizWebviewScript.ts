@@ -64,6 +64,10 @@ const machine = createMachine<WebViewMachineContext, VizWebviewMachineEvent>({
       on: {
         UPDATE: {
           cond: (context, event) => {
+            console.log(event.uri);
+            console.log(event.index);
+            console.log(event.config);
+            console.log(event.guardsToMock);
             return context.uri === event.uri && context.index === event.index;
           },
           target: '.startingInspector',
@@ -108,7 +112,7 @@ const machine = createMachine<WebViewMachineContext, VizWebviewMachineEvent>({
               });
 
               context.config.context = {};
-
+              console.log(context);
               const machine = createMachine(context.config || {}, {
                 guards,
               });

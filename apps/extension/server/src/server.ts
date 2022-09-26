@@ -126,6 +126,7 @@ function getDocumentSettings(resource: string): Thenable<GlobalSettings> {
 
 // Only keep settings for open documents
 documents.onDidClose((e) => {
+  console.log(e.document.uri);
   documentSettings.delete(e.document.uri);
 });
 
@@ -158,6 +159,7 @@ connection.onCodeLens((params): CodeLens[] => {
   }
   return machinesParseResult.flatMap((machine, index): CodeLens[] => {
     const callee = machine.parseResult?.ast?.callee;
+    console.log(machine);
     return [
       {
         range: getRangeFromSourceLocation(callee?.loc!),
@@ -175,7 +177,7 @@ connection.onCodeLens((params): CodeLens[] => {
       {
         range: getRangeFromSourceLocation(callee?.loc!),
         command: {
-          title: 'Open Inspector',
+          title: 'Open Inspector for Robustness Testing',
           command: 'stately-xstate.inspect',
           arguments: [
             machine.parseResult?.toConfig(),

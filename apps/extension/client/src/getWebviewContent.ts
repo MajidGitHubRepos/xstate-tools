@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 
 export const getWebviewContent = (scriptsSrc: vscode.Uri, title: string) => {
+  console.log(scriptsSrc);
   return `
           <!DOCTYPE html>
           <html lang="en">

@@ -21,6 +21,10 @@ import { initiateVisualizer } from './initiateVisualizer';
 let client: LanguageClient;
 
 export async function activate(context: vscode.ExtensionContext) {
+  vscode.window.showInformationMessage(
+    'This extention is going to help you with robustness testing!',
+  );
+
   // The server is implemented in node
   let serverModule = context.asAbsolutePath(path.join('dist', 'server.js'));
   // The debug options for the server
