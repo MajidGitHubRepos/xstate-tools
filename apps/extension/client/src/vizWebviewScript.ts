@@ -1,5 +1,15 @@
 import { inspect } from '@xstate/inspect';
-import { assign, createMachine, interpret, MachineConfig } from 'xstate';
+import {
+  actions,
+  assign,
+  createMachine,
+  interpret,
+  MachineConfig,
+  send,
+  sendParent
+} from 'xstate';
+
+const { respond } = actions;
 
 export interface WebViewMachineContext {
   config: MachineConfig<any, any, any>;
@@ -27,6 +37,7 @@ export type VizWebviewMachineEvent =
 const machine = createMachine<WebViewMachineContext, VizWebviewMachineEvent>({
   initial: 'waitingForFirstContact',
   context: {
+    count: 0,
     config: {},
     uri: '',
     index: 0,
@@ -37,6 +48,7 @@ const machine = createMachine<WebViewMachineContext, VizWebviewMachineEvent>({
       window.addEventListener('message', (event) => {
         try {
           send(event.data);
+          console.log(event);
         } catch (e) {
           console.warn(e);
         }
@@ -64,10 +76,6 @@ const machine = createMachine<WebViewMachineContext, VizWebviewMachineEvent>({
       on: {
         UPDATE: {
           cond: (context, event) => {
-            console.log(event.uri);
-            console.log(event.index);
-            console.log(event.config);
-            console.log(event.guardsToMock);
             return context.uri === event.uri && context.index === event.index;
           },
           target: '.startingInspector',
@@ -96,13 +104,82 @@ const machine = createMachine<WebViewMachineContext, VizWebviewMachineEvent>({
         },
       },
       initial: 'startingInspector',
+      // on: {
+      //   REQ_IPSM: {
+      //     target: '.startingIPSM',
+      //     actions: assign((context, event) => {
+      //       return {
+      //         config: event.config,
+      //         index: event.index,
+      //         uri: event.uri,
+      //         guardsToMock: event.guardsToMock || [],
+      //       };
+      //     }),
+      //   },
+      // },
       states: {
         startingInspector: {
           after: {
-            100: 'startingInterpreter',
+            100: 'startingIRA',
           },
         },
-        startingInterpreter: {
+        startingIRA: {
+          after: {
+            100: {
+              target: 'startingIBSM',
+              cond: 'cond_active_IBSM',
+              actions: 'deactive_IBMS',
+            },
+          },
+          on: {
+            REQ_IPSM: {
+              // cond: 'condInT3',
+              target: 'startingIPSM',
+              actions: ['log'],
+            },
+            REQ_IBSM: {
+              target: 'startingIBSM',
+              actions: ['log'],
+            },
+          },
+          invoke: {
+            id: 'MRA',
+            src: machine_RA,
+            //========[ra4Xstate-IRA]=========
+            //Listening to a message/data from IRA
+            //Consume the message/data and go to the next configuration
+            //Sending the configuration to IRA
+            //================================
+          },
+          entry: [
+            send(
+              {
+                type: 'onPing',
+              },
+              {
+                to: 'MRA',
+                delay: 200,
+              },
+            ),
+            () => {
+              console.log('Ping');
+            },
+          ],
+        },
+        startingIBSM: {
+          after: {
+            100: {
+              target: 'startingIPSM',
+              cond: 'cond_active_IPSM',
+              actions: 'deactive_IPSM',
+            },
+          },
+          on: {
+            RES_IBSM: {
+              target: 'startingIRA',
+              actions: ['log'],
+            },
+          },
           invoke: {
             src: (context) => (send) => {
               const guards: Record<string, () => boolean> = {};
@@ -116,11 +193,48 @@ const machine = createMachine<WebViewMachineContext, VizWebviewMachineEvent>({
               const machine = createMachine(context.config || {}, {
                 guards,
               });
-
               const service = interpret(machine, {
                 devTools: true,
               }).start();
+              //========[ra4Xstate]=========
+              //Listening to a message/data from IRA
+              //Consume the message/data and go to the next configuration
+              //Sending the configuration to IRA
+              //=================
+              return () => {
+                service.stop();
+              };
+            },
+          },
+        },
+        startingIPSM: {
+          on: {
+            RES_IPSM: {
+              target: 'startingIRA',
+              actions: ['log'],
+            },
+          },
+          invoke: {
+            src: (context) => (send) => {
+              const guards: Record<string, () => boolean> = {};
 
+              context.guardsToMock?.forEach((guard) => {
+                guards[guard] = () => true;
+              });
+
+              context.config.context = {};
+              console.log(context);
+              const machine = createMachine(context.config || {}, {
+                guards,
+              });
+              const service = interpret(machine, {
+                devTools: true,
+              }).start();
+              //========[ra4Xstate]=========
+              //Listening to a message/data from IRA
+              //Consume the message/data and go to the next configuration
+              //Sending the configuration to IRA
+              //=================
               return () => {
                 service.stop();
               };
@@ -130,6 +244,69 @@ const machine = createMachine<WebViewMachineContext, VizWebviewMachineEvent>({
       },
     },
   },
+}).withConfig({
+  //it alows us to specify actions and etc.
+  actions: {
+    log: () => console.log('transition log!'),
+    runAction1: () => console.log('I am running the action1 in t1!'),
+    runAction2: () => console.log('I am running the action2 in t1!'),
+    fun1: () => console.log('You just entered to s1!'),
+    deactive_IBMS: () =>
+      assign({
+        active_IBSM: false,
+      }),
+    deactive_IPSM: () =>
+      assign({
+        active_IPSM: false,
+      }),
+    updateContextS1: () =>
+      assign({
+        count: (context) => context.count + 25,
+      }),
+    updateContextT3WithEvePayload: () =>
+      assign({
+        count: (context, event) => context.count * event.value,
+      }),
+  },
+  guards: {
+    cond_active_IBSM: (context) => context.active_IBSM == true,
+    cond_active_IPSM: (context) => context.active_IPSM == true,
+  },
 });
+
+const machine_RA = createMachine({
+  initial: 'init',
+  id: 'MRA',
+  states: {
+    init: {
+      on: {
+          onPing: {
+            //target: 'pong',
+            actions: [() => {
+                    console.log('Pong')
+                },
+                'sendPong',
+                'updatePongCount',
+            ]
+          },
+      },
+    },
+    done: {
+      //type: 'final',
+      entry: [
+        () => {
+          console.log('M2 is done!');
+        },
+      ],
+    },
+  },
+}).withConfig({
+  actions: {
+      'sendPong': sendParent('onPong', {
+          delay: 200
+      }),
+      'updatePongCount': () => {
+          const start = performance.now();
+
 
 interpret(machine).start();
